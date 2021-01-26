@@ -37,13 +37,36 @@ async def help(ctx):
     await ctx.channel.send(embed=embed)
     return
 
-
-
 @bot.command(name="ping")
 async def testCommand(ctx):
     print({ctx.author.name + "#" + ctx.author.discriminator}, " sent ", {ctx.message.content})
     await ctx.channel.send("pong")
     print("Command executed succesfully.")
+
+@bot.command(name="link")
+async def linkUser(ctx, platform, username, platname):
+    with open("link.json") as file:
+        data = json.load(file)
+        for a in data["accounts"]:
+            if a["username"] == username and platform in a:
+                    embed = discord.Embed(title="Sorry!", description="User already has linked an account on ", platform, ".")
+                    await ctx.channel.send(embed=embed)
+                    print("Command executed unsuccesfully.")
+                    return
+        data["accounts"].append({
+            "username" = username
+            platform = platname
+        })
+        with open("link.json", "w") as out:
+            json.dump(data, out)
+        out.close()
+    file.close()
+    return
+
+
+@bot.command(name="user")
+async def getUser(ctx, username):
+    return
 
 @bot.command(name="chesscomuser")
 async def getChesscomUser(ctx, username):
