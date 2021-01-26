@@ -16,3 +16,4 @@ def setup():
     global client
     session = berserk.TokenSession(token)
     client = berserk.Client(session)
+    print("Lichess module is initialised.")
