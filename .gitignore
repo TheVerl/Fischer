@@ -1,3 +1,4 @@
 discord.token
 lichess.token
-chess/__pycache__
+platforms/__pycache__
+board/__pycache__
