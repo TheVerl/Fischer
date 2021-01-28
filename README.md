@@ -1,1 +1,2 @@
 # Fischer
+Discord chess bot.
