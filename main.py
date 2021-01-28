@@ -7,13 +7,15 @@ import sys, json, datetime
 from datetime import datetime
 
 # Import scripts
-sys.path.insert(0, 'chess/')
+sys.path.insert(0, 'platforms/')
 import chesscom
 import lichess
+sys.path.insert(0, 'board/')
+import board
 
 # Global variables
 client = discord.Client()
-bot = commands.Bot(command_prefix=".")
+bot = commands.Bot(command_prefix="$")
 token = ""
 legalCommands = ["cmds", "ping", "user", "lichessuser", "chesscomuser", "link", "cmds"]
 
@@ -31,7 +33,7 @@ async def on_ready():
 # Checks if the message is legal.
 @bot.event
 async def on_message(message):
-    if message.content.startswith('.'):
+    if message.content.startswith(bot.command_prefix):
         ctx = await bot.get_context(message)
         print({ctx.author.name + "#" + ctx.author.discriminator}, " sent ", {ctx.message.content})
         if not ctx.valid:
@@ -63,6 +65,15 @@ async def help(ctx):
 async def testCommand(ctx):
     await ctx.channel.send("pong")
     print("Command executed succesfully.")
+
+@bot.command(name="boardtest")
+async def boardTest(ctx):
+    board.generateImage()
+    embed = discord.Embed(title="one black queen test")
+    file = discord.File("editedBoard.png", filename="image.png")
+    embed.set_image(url="attachment://image.png")
+    await ctx.send(file=file, embed=embed)
+    return
 
 # Links chess.com/lichess accounts to the Discord user.
 @bot.command(name="link")

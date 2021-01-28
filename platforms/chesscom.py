@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+# Import modules
 from chessdotcom import *
 import os, sys, json
 
