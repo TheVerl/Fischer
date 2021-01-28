@@ -11,11 +11,13 @@ sys.path.insert(0, 'chess/')
 import chesscom
 import lichess
 
-
+# Global variables
 client = discord.Client()
-bot = commands.Bot(command_prefix="$")
+bot = commands.Bot(command_prefix=".")
 token = ""
+legalCommands = ["cmds", "ping", "user", "lichessuser", "chesscomuser", "link", "cmds"]
 
+# Sends messages to host on startup.
 @bot.event
 async def on_ready():
     await bot.change_presence(activity=discord.Game(name="against Spassky"))
@@ -26,30 +28,117 @@ async def on_ready():
     lichess.setup()
     chesscom.setup()
 
+# Checks if the message is legal.
+@bot.event
+async def on_message(message):
+    if message.content.startswith('.'):
+        ctx = await bot.get_context(message)
+        print({ctx.author.name + "#" + ctx.author.discriminator}, " sent ", {ctx.message.content})
+        if not ctx.valid:
+            embed = discord.Embed(title="Sorry!", description="That is not a legal command.\n Use '.cmds' to find a list of all legal commands.")
+            embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
+            await ctx.channel.send(embed=embed)
+            print("Command executed unsuccesfully.")
+        else:
+            await bot.process_commands(message)
+
+    return
+
+# Help command.
 @bot.command(name="cmds")
 async def help(ctx):
     embed = discord.Embed(title="Command List")
-    embed.add_field(name="$ping", value = "pong!", inline=False)
-    embed.add_field(name="$lichessuser", value = "Get the info and stats of a specific user on lichess.org", inline=False)
-    embed.add_field(name="$chesscomuser", value = "Get the info and stats of a specific user on chess.com", inline=False)
-    embed.add_field(name="$help", value = "What you see before you now.", inline=False)
-    embed.set_footer(text="Developed by Verl.")
+    embed.add_field(name=bot.command_prefix + "ping", value = "pong!", inline=False)
+    embed.add_field(name=bot.command_prefix + "user", value = "Get info about the chess accounts linked to the mentioned user.\n Usage: " + bot.command_prefix +  "user @[user]")
+    embed.add_field(name=bot.command_prefix + "lichessuser", value = "Get info and stats of a specific user on lichess.org.\n Usage: " + bot.command_prefix + "lichessuser [lichess username]", inline=False)
+    embed.add_field(name=bot.command_prefix + "chesscomuser", value = "Get info and stats of a specific user on chess.com.\n Usage: " + bot.command_prefix +  "chesscomuser [chess.com username]", inline=False)
+    embed.add_field(name=bot.command_prefix + "link", value = "Link your lichess or chess.com account to your Discord account.\n Usage: " + bot.command_prefix +  "link lichess/chesscom [your lichess/chess.com username]")
+    embed.add_field(name=bot.command_prefix + "cmds", value = "What you see before you now.", inline=False)
+    embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
     await ctx.channel.send(embed=embed)
     return
 
-
-
+# Pong!
 @bot.command(name="ping")
 async def testCommand(ctx):
-    print({ctx.author.name + "#" + ctx.author.discriminator}, " sent ", {ctx.message.content})
     await ctx.channel.send("pong")
     print("Command executed succesfully.")
 
+# Links chess.com/lichess accounts to the Discord user.
+@bot.command(name="link")
+async def linkUser(ctx, platform, platname):
+    username = ctx.author.name + "#" + ctx.author.discriminator
+    with open("link.json") as file:
+        data = json.load(file)
+        existingEntryIndex = None
+        for a in range(0, len(data["accounts"])):
+            if data["accounts"][a]["username"] == username:
+                existingEntryIndex = a
+            else:
+                pass
+        if existingEntryIndex != None:
+            data["accounts"][existingEntryIndex][platform] = platname
+        else:
+            data["accounts"].append({
+                "username": username,
+                platform: platname
+            })
+        with open("link.json", "w") as out:
+            json.dump(data, out, indent=4)
+        out.close()
+        print("Linked " + platform + " account " + platname + " to " + username + ".")
+        embed = discord.Embed(title="Link succesful", description="Linked " + platform + " account " + platname + " to " + username + ".")
+        print("Command executed succesfully.")
+        embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
+        await ctx.channel.send(embed=embed)
+    file.close()
+    return
+
+# Gets info about the chess.com/lichess accounts associated with the specified Discord user.
+@bot.command(name="user")
+async def getUser(ctx, mention: discord.Member):
+    username = mention.name + "#" + mention.discriminator
+    with open("link.json") as file:
+        data = json.load(file)
+        userInfo = None
+        for a in range(0, len(data["accounts"])):
+            if data["accounts"][a]["username"] == username:
+                userInfo = data["accounts"][a]
+            else:
+                pass
+        if userInfo != None:
+            embed = discord.Embed(title=username + "'s " + "accounts")
+            if "chesscom" in userInfo:
+                platname = userInfo["chesscom"]
+                stat = chesscom.getUserStat(platname).json
+                embed.add_field(name="Chess.com", value="https://chess.com/member/" + platname, inline=False)
+                embed.add_field(name="Bullet", value=stat["chess_bullet"]["last"]["rating"])
+                embed.add_field(name="Blitz", value=stat["chess_blitz"]["last"]["rating"])
+                embed.add_field(name="Rapid", value=stat["chess_bullet"]["last"]["rating"])
+            if "lichess" in userInfo:
+                platname = userInfo["lichess"]
+                stat = lichess.getUser(platname)
+                embed.add_field(name="Lichess.org", value="https://lichess.org/@/" + platname, inline=False)
+                embed.add_field(name="Bullet", value=stat["perfs"]["bullet"]["rating"])
+                embed.add_field(name="Blitz", value=stat["perfs"]["blitz"]["rating"])
+                embed.add_field(name="Rapid", value=stat["perfs"]["rapid"]["rating"])
+            embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
+            await ctx.channel.send(embed=embed)
+            print("Command executed succesfully.")
+        else:
+            embed = discord.Embed(title="Sorry!", description="Could not find the specified user in the database.")
+            embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
+            await ctx.channel.send(embed=embed)
+            print("Command executed unsuccesfully.")
+                
+    return
+
+# Gets info about the specified chess.com user.
 @bot.command(name="chesscomuser")
 async def getChesscomUser(ctx, username):
-    print({ctx.author.name + "#" + ctx.author.discriminator}, " sent ", {ctx.message.content})
     if username == None:
         embed = discord.Embed(title="Sorry!", description="Was not given a user to search for.")
+        embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
         await ctx.channel.send(embed=embed)
         print("Command executed unsuccesfully.")
     try:
@@ -85,7 +174,7 @@ async def getChesscomUser(ctx, username):
         embed.add_field(name="Bullet W/L Ratio", value = round(matches["win"]["bullet"] / matches["loss"]["bullet"], 2))
         embed.add_field(name="Account creation date", value = creation.strftime("%Y-%m-%d %H:%M"))
         embed.add_field(name="Last seen", value = last.strftime("%Y-%m-%d %H:%M"), inline=True)
-        embed.set_footer(text="Dates and times are in GMT. Developed by Verl.")
+        embed.set_footer(text="Dates and times are in GMT. Developed by Verl#7647, GitHub: https://github.com/TheVerl")
         await ctx.channel.send(embed=embed)
         print("Command executed succesfully.")
     except:
@@ -94,23 +183,26 @@ async def getChesscomUser(ctx, username):
         print("Command executed unsuccesfully.")
     return
 
+# Gets info about the specified lichess user.
 @bot.command(name="lichessuser")
 async def getLichessUser(ctx, username):
-    print({ctx.author.name + "#" + ctx.author.discriminator}, " sent ", {ctx.message.content})
     if username == None:
         embed = discord.Embed(title="Sorry!", description="Was not given a user to search for.")
+        embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
         await ctx.channel.send(embed=embed)
         print("Command executed unsuccesfully.")
     try:
         data = (lichess.getUser(username))
     except:
         embed = discord.Embed(title="Sorry!", description="Could not find the specified user.")
+        embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
         await ctx.channel.send(embed=embed)
         print("Command executed unsuccesfully.")
         return
     try:
         if (data['closed'] == True):
             embed = discord.Embed(title="Sorry!", description="The specified user's account has been closed.")
+            embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
             await ctx.channel.send(embed=embed)
             print("Command executed unsuccesfully.")
             return
@@ -131,7 +223,7 @@ async def getLichessUser(ctx, username):
         embed.add_field(name="W/L Ratio", value = round(data['count']['win'] / data['count']['loss'], 2), inline=True)
         embed.add_field(name="Account creation date", value = data['createdAt'].strftime("%Y-%m-%d %H:%M"), inline=True)
         embed.add_field(name="Last seen", value = data['seenAt'].strftime("%Y-%m-%d %H:%M"), inline=True)
-        embed.set_footer(text="Dates and times are in GMT. Developed by Verl.")
+        embed.set_footer(text="Dates and times are in GMT. Developed by Verl#7647, GitHub: https://github.com/TheVerl")
         await ctx.channel.send(embed=embed)
         print("Command executed succesfully.")
 

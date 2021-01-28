@@ -5,18 +5,22 @@ import os, sys, json
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
+# Checks whether the user is online or not.
 def getUserStatus(username):
     if (is_player_online(username)):
         return True
     else:
         return False
 
+# Gets the user's info.
 def getUserInfo(username):
     return get_player_profile(username)
 
+# Gets the user's statistics.
 def getUserStat(username):
     return get_player_stats(username)
 
+# Gets the user's match statistics.
 def getUserMatches(username, stats):
     matches = {}
     matches["win"] = {
@@ -45,5 +49,6 @@ def getUserMatches(username, stats):
     matches["total"] = matches["sum"]["rapid"] + matches["sum"]["blitz"] + matches["sum"]["bullet"]
     return matches
 
+# Setup.
 def setup():
     print("Chess.com module is initialised.")
