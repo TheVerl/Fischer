@@ -14,16 +14,70 @@ class Square:
 
 # Global variables
 boardImage = Image.open("board/board.png")
-boardDict = [
-    [ Square("black", "queen"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none") ],
-    [ Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none") ],
-    [ Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none") ],
-    [ Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none") ],
-    [ Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none") ],
-    [ Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none"), Square("empty", "none") ]
-]
 x = [ 25, 109, 194, 279, 363, 448, 531, 616 ]
-y = [ 616, 531, 448, 363, 279, 194, 109, 25 ]
+y = [ 25, 109, 194, 279, 363, 448, 531, 616 ]
+#y = [ 616, 531, 448, 363, 279, 194, 109, 25 ]
+
+def getPieceFromCoord(situation, coord):
+    coordArray = [char for char in coord]
+    fil = int(ord(coordArray[0]) - 96) - 1
+    rank = 8 - int(coordArray[1])
+
+    if (situation[rank][fil].piece == "king"):
+        return "K" + coord
+    elif (situation[rank][fil].piece == "queen"):
+        return "Q" + coord
+    elif (situation[rank][fil].piece == "rook"):
+        return "R" + coord
+    elif (situation[rank][fil].piece == "knight"):
+        return "N" + coord
+    elif (situation[rank][fil].piece == "bishop"):
+        return "B" + coord
+    elif (situation[rank][fil].piece == "pawn"):
+        return coord
+
+def decompileFEN(fen, data):
+    situation = []
+    for x in range(0, len(fen)):
+        row = [char for char in fen[x]]
+        line = []
+        for y in range(0, len(row)):
+            if row[y].isnumeric():
+                for z in range(int(row[y])):
+                    line.append(Square("empty", "none"))
+            else:
+                colour = ""
+                piece = ""
+                if row[y].isupper():
+                    colour = "white"
+                else:
+                    colour = "black"
+                if (row[y].lower() == "r"):
+                    piece = "rook"
+                elif (row[y].lower() == "n"):
+                    piece = "knight"
+                elif (row[y].lower() == "b"):
+                    piece = "bishop"
+                elif (row[y].lower() == "q"):
+                    piece = "queen"
+                elif (row[y].lower() == "k"):
+                    piece = "king"
+                elif (row[y].lower() == "p"):
+                    piece = "pawn"
+                line.append(Square(colour, piece))
+        situation.append(line)
+    
+    extra = []
+    if (data[1] == "w"):
+        extra.append("White")
+    elif (data[1] == "b"):
+        extra.append("Black")
+
+    # Add castling and other stuff the end of the FEN describes later lol
+
+    situation.append(extra)
+    
+    return situation
 
 def definePiece(coord):
     chessman = ""
@@ -50,14 +104,15 @@ def definePiece(coord):
         chessman += "pawn.png"
     return chessman
 
-def generateImage():
-    for fil in range(0, len(boardDict)):
-        for rank in range(0, len(boardDict[fil])):
-            piece = definePiece(boardDict[fil][rank])
+def generateImage(situation):
+    for fil in range(0, len(situation) - 1):
+        for rank in range(0, len(situation[fil])):
+            piece = definePiece(situation[fil][rank])
             if piece is None: continue
             truePiece = Image.open(piece).convert("RGBA")
             #truePiece = truePiece.resize((75, 75))
-            boardImage.paste(truePiece, (rank, fil), truePiece)
+            boardImage.paste(truePiece, (x[rank], y[fil]), truePiece)
+            #print("pasted " + boardDict[fil][rank].colour + " " + boardDict[fil][rank].piece)
                 
     boardImage.save("editedBoard.png")
     return

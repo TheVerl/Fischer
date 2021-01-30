@@ -2,3 +2,4 @@ discord.token
 lichess.token
 platforms/__pycache__
 board/__pycache__
+puzzles.csv

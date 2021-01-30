@@ -3,7 +3,7 @@
 # Import modules
 import discord 
 from discord.ext import commands
-import sys, json, datetime
+import sys, json, datetime, csv, random, os
 from datetime import datetime
 
 # Import scripts
@@ -17,7 +17,8 @@ import board
 client = discord.Client()
 bot = commands.Bot(command_prefix="$")
 token = ""
-legalCommands = ["cmds", "ping", "user", "lichessuser", "chesscomuser", "link", "cmds"]
+legalCommands = ["cmds", "ping", "user", "lichessuser", "chesscomuser", "link", "cmds", "puzzle"]
+puzzleFile = open("puzzles.csv", "r")
 
 # Sends messages to host on startup.
 @bot.event
@@ -66,14 +67,78 @@ async def testCommand(ctx):
     await ctx.channel.send("pong")
     print("Command executed succesfully.")
 
-@bot.command(name="boardtest")
-async def boardTest(ctx):
-    board.generateImage()
-    embed = discord.Embed(title="one black queen test")
+#@bot.command(name="boardtest")
+#async def boardTest(ctx):
+#    board.generateImage()
+#    embed = discord.Embed(title="opening move test")
+#    file = discord.File("editedBoard.png", filename="image.png")
+#    embed.set_image(url="attachment://image.png")
+#    await ctx.send(file=file, embed=embed)
+#    return
+
+@bot.command(name="puzzle")
+async def puzzle(ctx):
+    # Get the amount of lines in the file and generate a random number to go to as a row in the file.
+    count = sum(1 for row in puzzleFile)
+    offset = random.randrange(count)
+
+    # Load the file, find the random row and turn it into a list.
+    puzzleFile.seek(offset)
+    puzzleFile.readline()
+    line = puzzleFile.readline()
+    puzzleData = line.split(",")
+
+    # Create FEN list
+    rawFen = puzzleData[1].split('/')
+    fen = []
+    gameData = []
+    for x in range(0, len(rawFen)):
+        if (x != len(rawFen) - 1):
+            fen.append(rawFen[x])
+        else:
+            fen.append(rawFen[x].split(" ", 1)[0])
+            gameData = rawFen[x].split(" ")
+
+    print("FEN:")
+    for x in range(0, len(fen)):
+        print(fen[x])
+    print("\n")
+    print("Extra data:")
+    for x in range(1, len(gameData)):
+        print(gameData[x])
+    print("\n")
+
+    # Send the FEN off to be decompiled.
+    decompiledFen = board.decompileFEN(fen, gameData)
+
+    # Get other info from CSV line.
+    rawMoves = puzzleData[2].split(" ")
+    moves = []
+    for x in range(0, len(rawMoves)):
+        duo = []
+        for z in range(0, len(rawMoves[x]), 2):
+            duo.append(rawMoves[x][z: z + 2])
+        moves.append(duo)
+    print("valid moves")
+    for x in range(len(moves)):
+        print(str(moves[x]))
+
+    completedPuzzle = False
+
+    # Send initial move.
+    board.generateImage(decompiledFen)
+    trueMove = board.getPieceFromCoord(decompiledFen, moves[0][0])
+    embed = discord.Embed(title="Random Puzzle", description=("" + decompiledFen[-1][0] + " has played " + trueMove + ". Your turn."))
     file = discord.File("editedBoard.png", filename="image.png")
     embed.set_image(url="attachment://image.png")
     await ctx.send(file=file, embed=embed)
+
+    #while (completedPuzzle == False):
+    # Output puzzle board image.
+
+    os.remove("editedBoard.png")
     return
+
 
 # Links chess.com/lichess accounts to the Discord user.
 @bot.command(name="link")
@@ -245,4 +310,5 @@ def init():
     bot.run(token)
 
 if __name__ == '__main__':
+    print("Loading...")
     init()
