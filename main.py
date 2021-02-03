@@ -3,7 +3,7 @@
 # Import modules
 import discord 
 from discord.ext import commands
-import sys, json, datetime, csv, random, os
+import sys, json, datetime, csv, random, os, copy
 from datetime import datetime
 
 # Import scripts
@@ -16,6 +16,7 @@ import board
 # Global variables
 client = discord.Client()
 bot = commands.Bot(command_prefix="$")
+prefix = bot.command_prefix
 token = ""
 legalCommands = ["cmds", "ping", "user", "lichessuser", "chesscomuser", "link", "cmds", "puzzle"]
 puzzleFile = open("puzzles.csv", "r")
@@ -67,17 +68,13 @@ async def testCommand(ctx):
     await ctx.channel.send("pong")
     print("Command executed succesfully.")
 
-#@bot.command(name="boardtest")
-#async def boardTest(ctx):
-#    board.generateImage()
-#    embed = discord.Embed(title="opening move test")
-#    file = discord.File("editedBoard.png", filename="image.png")
-#    embed.set_image(url="attachment://image.png")
-#    await ctx.send(file=file, embed=embed)
-#    return
 
+# Complete a puzzle.
 @bot.command(name="puzzle")
 async def puzzle(ctx):
+    # Get the channel where this command was invoked.
+    channel = ctx.channel
+
     # Get the amount of lines in the file and generate a random number to go to as a row in the file.
     count = sum(1 for row in puzzleFile)
     offset = random.randrange(count)
@@ -89,6 +86,7 @@ async def puzzle(ctx):
     puzzleData = line.split(",")
 
     # Create FEN list
+    print("ID:" + str(puzzleData[0]))
     rawFen = puzzleData[1].split('/')
     fen = []
     gameData = []
@@ -124,19 +122,50 @@ async def puzzle(ctx):
         print(str(moves[x]))
 
     completedPuzzle = False
+    i = 0
+    FEN = board.updateFEN(moves[0][0], moves[0][1], decompiledFen)
+    potentialFEN = FEN
+    oldFEN = FEN
+    reply = "INITIAL"
 
-    # Send initial move.
-    board.generateImage(decompiledFen)
-    trueMove = board.getPieceFromCoord(decompiledFen, moves[0][0])
-    embed = discord.Embed(title="Random Puzzle", description=("" + decompiledFen[-1][0] + " has played " + trueMove + ". Your turn."))
-    file = discord.File("editedBoard.png", filename="image.png")
-    embed.set_image(url="attachment://image.png")
-    await ctx.send(file=file, embed=embed)
+    while (completedPuzzle == False):
+        oldFEN = FEN
+        potentialFEN = board.updateFEN(moves[i+1][0], moves[i+1][1], oldFEN)
+        print("MOVE REQUIRED: " + board.getPieceFromCoord(potentialFEN, moves[i+1][1]))
+        if reply == prefix + "puzzle":
+            puzzle(ctx)
+        if reply == "INITIAL":
+            trueMove = board.getPieceFromCoord(oldFEN, moves[0][1])
+            board.generateImage(oldFEN)
+            embed = discord.Embed(title="Random Puzzle", description=(oldFEN[-1][0] + " has played " + trueMove + ". Your turn.\nYou must send only algebraic notation of your move."))
+            file = discord.File("editedBoard.png", filename="image.png")
+            embed.set_image(url="attachment://image.png")
+            await ctx.send(file=file, embed=embed)
+        elif reply == board.getPieceFromCoord(potentialFEN, moves[i+1][1]):
+            i = i + 1
+            potentialFEN = board.clearSquare(moves[i][0], potentialFEN)
+            trueMove = board.getPieceFromCoord(potentialFEN, moves[i][1])
+            board.generateImage(potentialFEN)
+            embed = discord.Embed(title="Random Puzzle", description=("Correct! Now, " + potentialFEN[-1][0] + " has played " + trueMove + ". Your turn.\nYou must send only algebraic notation of your move."))
+            file = discord.File("editedBoard.png", filename="image.png")
+            embed.set_image(url="attachment://image.png")
+            await ctx.send(file=file, embed=embed)
+        else:
+            print("the move is " + moves[i][1])
+            trueMove = board.getPieceFromCoord(oldFEN, moves[i][1])
+            board.generateImage(oldFEN)
+            embed = discord.Embed(title="Random Puzzle", description=("Incorrect. " + oldFEN[-1][0] + " has played " + trueMove + ". Your turn.\nYou must send only algebraic notation of your move."))
+            file = discord.File("editedBoard.png", filename="image.png")
+            embed.set_image(url="attachment://image.png")
+            await ctx.send(file=file, embed=embed)
 
-    #while (completedPuzzle == False):
-    # Output puzzle board image.
+        def check(m):
+            return m.channel == channel and m.author.bot != True
 
-    os.remove("editedBoard.png")
+        msg = await bot.wait_for('message', check=check)
+        reply = msg.content
+
+        os.remove("editedBoard.png")
     return
 
 

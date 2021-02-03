@@ -2,7 +2,7 @@
 
 # Import modules
 from PIL import Image
-import sys, os
+import sys, os, copy
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -16,7 +16,6 @@ class Square:
 boardImage = Image.open("board/board.png")
 x = [ 25, 109, 194, 279, 363, 448, 531, 616 ]
 y = [ 25, 109, 194, 279, 363, 448, 531, 616 ]
-#y = [ 616, 531, 448, 363, 279, 194, 109, 25 ]
 
 def getPieceFromCoord(situation, coord):
     coordArray = [char for char in coord]
@@ -35,6 +34,35 @@ def getPieceFromCoord(situation, coord):
         return "B" + coord
     elif (situation[rank][fil].piece == "pawn"):
         return coord
+    else:
+        return "how tf did this happen lmao"
+
+def clearSquare(coord, situation):
+    situationCopy = copy.deepcopy(situation)
+    coordArray = [char for char in coord]
+    fil = int(ord(coordArray[0]) - 96) - 1
+    rank = 8 - int(coordArray[1])
+    situationCopy[rank][fil].piece = "none"
+    situationCopy[rank][fil].colour = "empty"
+    return situationCopy
+
+def updateFEN(oldCoord, newCoord, situation):
+    situationCopy = copy.deepcopy(situation)
+    coordArray = [char for char in oldCoord]
+    oldFil = int(ord(coordArray[0]) - 96) - 1
+    oldRank = 8 - int(coordArray[1])
+    piece = situationCopy[oldRank][oldFil].piece
+    colour = situationCopy[oldRank][oldFil].colour
+    coordArray = [char for char in newCoord]
+    fil = int(ord(coordArray[0]) - 96) - 1
+    rank = 8 - int(coordArray[1])
+    situationCopy[rank][fil].piece = piece
+    situationCopy[rank][fil].colour = colour
+    if (situationCopy[-1][0] == "white"):
+        situationCopy[-1][0] = "black"
+    elif (situationCopy[-1][0] == "black"):
+        situationCopy[-1][0] = "white"
+    return situationCopy
 
 def decompileFEN(fen, data):
     situation = []
@@ -107,6 +135,7 @@ def definePiece(coord):
 def generateImage(situation):
     for fil in range(0, len(situation) - 1):
         for rank in range(0, len(situation[fil])):
+            print(situation[fil][rank].colour + " " + situation[fil][rank].piece)
             piece = definePiece(situation[fil][rank])
             if piece is None: continue
             truePiece = Image.open(piece).convert("RGBA")
