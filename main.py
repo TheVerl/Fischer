@@ -16,7 +16,7 @@ import board
 
 # Global variables
 client = discord.Client()
-bot = commands.Bot(command_prefix="$")
+bot = commands.Bot(command_prefix=".")
 prefix = bot.command_prefix
 token = ""
 legalCommands = ["cmds", "ping", "user", "lichessuser", "chesscomuser", "link", "cmds", "puzzle"]
