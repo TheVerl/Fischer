@@ -59,6 +59,7 @@ async def help(ctx):
     embed.add_field(name=bot.command_prefix + "chesscomuser", value = "Get info and stats of a specific user on chess.com.\n Usage: " + bot.command_prefix +  "chesscomuser [chess.com username]", inline=False)
     embed.add_field(name=bot.command_prefix + "link", value = "Link your lichess or chess.com account to your Discord account.\n Usage: " + bot.command_prefix +  "link lichess/chesscom [your lichess/chess.com username]")
     embed.add_field(name=bot.command_prefix + "cmds", value = "What you see before you now.", inline=False)
+    embed.add_field(name=bot.command_prefix + "puzzle", value = "Play a random puzzle.", inline=False)
     embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
     await ctx.channel.send(embed=embed)
     return
@@ -101,56 +102,91 @@ async def pzl(ctx):
     print("valid moves")
     for x in range(len(moves)):
         print(str(moves[x]))
+    # Get the rating and determine the difficulty.
+    difficulty = ""
+    rating = int(puzzleData[3])
+    if (rating >= 0 and rating <= 1499):
+        difficulty = "Easy"
+    elif (rating >= 1500 and rating <= 1999):
+        difficulty = "Medium"
+    elif (rating >= 2000):
+        difficulty = "Hard"
 
+    # Set up the variables needed in the loop.
     completedPuzzle = False
-    i = 0
+    joe = 0
     FEN = puzzle.updateFEN(moves[0][0], moves[0][1], decompiledFEN)
     FEN = puzzle.clearSquare(moves[0][0], FEN)
     potentialFEN = FEN
     oldFEN = FEN
+    lastFEN = FEN
+    lastMove = ""
     reply = "INITIAL"
-
     amountOfMoves = len(moves) - 1
     print("Amount of moves: " + str(amountOfMoves))
-    while (completedPuzzle == False):
-        oldFEN = FEN
-        potentialFEN = puzzle.updateFEN(moves[i+1][0], moves[i+1][1], oldFEN)
-        if reply == prefix + "puzzle":
-            pzl(ctx)
-        if reply == "INITIAL":
-            lastMove = board.getPieceFromCoord(oldFEN, moves[0][1])
-            requiredMove = board.getPieceFromCoord(potentialFEN, moves[i+1][1])
-            arr = puzzle.createPuzzleEmbed(oldFEN, lastMove, requiredMove, ctx)
-            await ctx.send(file=arr[0], embed=arr[1])
-        elif reply == board.getPieceFromCoord(potentialFEN, moves[i+1][1]):
-            i = i + 1
-            potentialFEN = puzzle.clearSquare(moves[i][0], potentialFEN)
-            i = i + 1
-            if (i+1 > len(moves)):
-                completedPuzzle = True
-                embed = discord.Embed(title="Puzzle complete!")
-                await ctx.send(embed=embed)
-                return
-            potentialFEN = puzzle.updateFEN(moves[i][0], moves[i][1], potentialFEN)
-            potentialFEN = puzzle.clearSquare(moves[i][0], potentialFEN)
-            lastMove = board.getPieceFromCoord(potentialFEN, moves[i][1])
-            requiredMove = board.getPieceFromCoord(potentialFEN, moves[i+1][1])
-            arr = puzzle.createPuzzleEmbed(potentialFEN, lastMove, requiredMove, ctx)
-            await ctx.send(file=arr[0], embed=arr[1])
-        else:
-            print("the move is " + moves[i][1])
-            lastMove = board.getPieceFromCoord(oldFEN, moves[i][1])
-            requiredMove = board.getPieceFromCoord(potentialFEN, moves[i+1][1])
-            arr = puzzle.createPuzzleEmbed(oldFEN, lastMove, requiredMove, ctx)
-            await ctx.send(file=arr[0], embed=arr[1])
+    msg = ""
 
+    # The main loop.
+    while (completedPuzzle == False):
+        print("i is at " + str(joe))
+        potentialFEN = puzzle.updateFEN(moves[joe+1][0], moves[joe+1][1], potentialFEN)
+        # If we are at the last move.
+        if joe+1 >= amountOfMoves:
+            potentialFEN = puzzle.updateFEN(moves[-1][0], moves[-1][1], oldFEN)
+            # If we got the correct move, end the loop.
+            if reply == board.getPieceFromCoord(potentialFEN, moves[-1][1]):
+                embed = discord.Embed(title="Puzzle complete!")
+                embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
+                await ctx.send(embed=embed)
+                if os.path.exists("editedBoard.png"):
+                    os.remove("editedBoard.png")
+                print("Command executed succesfully.")
+                return
+        else:
+            # If the player wants to execute a command.
+            if reply.startswith(bot.command_prefix):
+                print("Command executed succesfully.")
+                print("Exiting out of the puzzle routine.")
+                on_message(msg)
+                return
+            # If this is the beginning of the puzzle.
+            elif reply == "INITIAL":
+                lastMove = board.getPieceFromCoord(oldFEN, moves[0][1])
+                requiredMove = board.getPieceFromCoord(potentialFEN, moves[joe+1][1])
+                arr = puzzle.createPuzzleEmbed(oldFEN, lastMove, requiredMove, ctx, True, difficulty, str(puzzleData[7]))
+                await ctx.send(file=arr[0], embed=arr[1])
+            # If we got the correct move.
+            elif reply == board.getPieceFromCoord(potentialFEN, moves[joe+1][1]):
+                oldFEN = potentialFEN
+                joe += 1
+                potentialFEN = puzzle.clearSquare(moves[joe][0], potentialFEN)
+                arr = puzzle.createCongratulationsEmbed(potentialFEN, ctx)
+                await ctx.send(file=arr[0], embed=arr[1])
+                joe += 1
+                potentialFEN = puzzle.updateFEN(moves[joe][0], moves[joe][1], potentialFEN)
+                potentialFEN = puzzle.clearSquare(moves[joe][0], potentialFEN)
+                lastMove = board.getPieceFromCoord(potentialFEN, moves[joe][1])
+                requiredMove = board.getPieceFromCoord(potentialFEN, moves[joe+1][1])
+                arr = puzzle.createPuzzleEmbed(potentialFEN, lastMove, requiredMove, ctx, True, difficulty, str(puzzleData[7]))
+                await ctx.send(file=arr[0], embed=arr[1])
+            # If we didn't.
+            else:
+                print("the move is " + moves[joe][1])
+                lastMove = board.getPieceFromCoord(oldFEN, moves[joe][1])
+                requiredMove = board.getPieceFromCoord(potentialFEN, moves[joe+1][1])
+                arr = puzzle.createPuzzleEmbed(oldFEN, lastMove, requiredMove, ctx, False, difficulty, str(puzzleData[7]))
+                await ctx.send(file=arr[0], embed=arr[1])
+
+        # Go and get the next message in the channel and use it as the reply.
         def check(m):
             return m.channel == channel and m.author.bot != True
 
         msg = await bot.wait_for('message', check=check)
         reply = msg.content
 
-        os.remove("editedBoard.png")
+        # If the board image exists, delete it.
+        if os.path.exists("editedBoard.png"):
+            os.remove("editedBoard.png")
     return
 
 

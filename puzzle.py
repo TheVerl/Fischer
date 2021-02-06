@@ -13,12 +13,27 @@ import board
 # Functions
 
 # Creates an embed from a FEN, two moves and a context.
-def createPuzzleEmbed(FEN, lastMove, requiredMove, ctx):
+def createPuzzleEmbed(FEN, lastMove, requiredMove, ctx, correct, difficulty, themes):
     board.generateImage(FEN)
     print("MOVE REQUIRED: " + requiredMove)
-    embed = discord.Embed(title="Random Puzzle", description=(FEN[-1][0] + " has played " + lastMove + ". Your turn.\nYou must send only algebraic notation of your move."))
+    text = ""
+    if correct == True:
+        text = (FEN[-1][0] + " has played " + lastMove + ". Your turn.\nYou must send only algebraic notation of your move.")
+    else:
+        text = ("Incorrect, try again!\n" + FEN[-1][0] + " has played " + lastMove + ". Your turn.\nYou must send only algebraic notation of your move.")
+    embed = discord.Embed(title="Random Puzzle\n" + difficulty + "\n" + themes, description=text)
     file = discord.File("editedBoard.png", filename="image.png")
     embed.set_image(url="attachment://image.png")
+    embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
+    return [file, embed]
+
+# Create's an embed when the player does the correct move.
+def createCongratulationsEmbed(FEN, ctx):
+    board.generateImage(FEN)
+    embed = discord.Embed(title="Correct!")
+    file = discord.File("editedBoard.png", filename="image.png")
+    embed.set_image(url="attachment://image.png")
+    embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
     return [file, embed]
 
 # Parses a raw FEN string and then sends it to the decompiler to format it properly.
