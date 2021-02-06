@@ -3,19 +3,24 @@
 # Import modules
 import discord 
 from discord.ext import commands
-import sys, json, datetime
+import sys, json, datetime, csv, random, os, copy
 from datetime import datetime
 
 # Import scripts
-sys.path.insert(0, 'chess/')
+import puzzle
+sys.path.insert(0, 'platforms/')
 import chesscom
 import lichess
+sys.path.insert(0, 'board/')
+import board
 
 # Global variables
 client = discord.Client()
-bot = commands.Bot(command_prefix=".")
+bot = commands.Bot(command_prefix="$")
+prefix = bot.command_prefix
 token = ""
-legalCommands = ["cmds", "ping", "user", "lichessuser", "chesscomuser", "link", "cmds"]
+legalCommands = ["cmds", "ping", "user", "lichessuser", "chesscomuser", "link", "cmds", "puzzle"]
+puzzleFile = open("puzzles.csv", "r")
 
 # Sends messages to host on startup.
 @bot.event
@@ -31,7 +36,7 @@ async def on_ready():
 # Checks if the message is legal.
 @bot.event
 async def on_message(message):
-    if message.content.startswith('.'):
+    if message.content.startswith(bot.command_prefix):
         ctx = await bot.get_context(message)
         print({ctx.author.name + "#" + ctx.author.discriminator}, " sent ", {ctx.message.content})
         if not ctx.valid:
@@ -54,6 +59,7 @@ async def help(ctx):
     embed.add_field(name=bot.command_prefix + "chesscomuser", value = "Get info and stats of a specific user on chess.com.\n Usage: " + bot.command_prefix +  "chesscomuser [chess.com username]", inline=False)
     embed.add_field(name=bot.command_prefix + "link", value = "Link your lichess or chess.com account to your Discord account.\n Usage: " + bot.command_prefix +  "link lichess/chesscom [your lichess/chess.com username]")
     embed.add_field(name=bot.command_prefix + "cmds", value = "What you see before you now.", inline=False)
+    embed.add_field(name=bot.command_prefix + "puzzle", value = "Play a random puzzle.", inline=False)
     embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
     await ctx.channel.send(embed=embed)
     return
@@ -63,6 +69,126 @@ async def help(ctx):
 async def testCommand(ctx):
     await ctx.channel.send("pong")
     print("Command executed succesfully.")
+
+
+# Complete a puzzle.
+@bot.command(name="puzzle")
+async def pzl(ctx):
+    # Get the channel where this command was invoked.
+    channel = ctx.channel
+
+    # Get the amount of lines in the file and generate a random number to go to as a row in the file.
+    count = sum(1 for row in puzzleFile)
+    offset = random.randrange(count)
+
+    # Load the file, find the random row and turn it into a list.
+    puzzleFile.seek(offset)
+    puzzleFile.readline()
+    line = puzzleFile.readline()
+    puzzleData = line.split(",")
+
+    # Grab FEN and parse it.
+    print("ID:" + str(puzzleData[0]))
+    decompiledFEN = puzzle.parseFEN(puzzleData[1].split('/'))
+
+    # Get other info from CSV line.
+    rawMoves = puzzleData[2].split(" ")
+    moves = []
+    for x in range(0, len(rawMoves)):
+        duo = []
+        for z in range(0, len(rawMoves[x]), 2):
+            duo.append(rawMoves[x][z: z + 2])
+        moves.append(duo)
+    print("valid moves")
+    for x in range(len(moves)):
+        print(str(moves[x]))
+    # Get the rating and determine the difficulty.
+    difficulty = ""
+    rating = int(puzzleData[3])
+    if (rating >= 0 and rating <= 1499):
+        difficulty = "Easy"
+    elif (rating >= 1500 and rating <= 1999):
+        difficulty = "Medium"
+    elif (rating >= 2000):
+        difficulty = "Hard"
+
+    # Set up the variables needed in the loop.
+    completedPuzzle = False
+    joe = 0
+    FEN = puzzle.updateFEN(moves[0][0], moves[0][1], decompiledFEN)
+    FEN = puzzle.clearSquare(moves[0][0], FEN)
+    potentialFEN = FEN
+    oldFEN = FEN
+    lastFEN = FEN
+    lastMove = ""
+    reply = "INITIAL"
+    amountOfMoves = len(moves) - 1
+    print("Amount of moves: " + str(amountOfMoves))
+    msg = ""
+
+    # The main loop.
+    while (completedPuzzle == False):
+        print("i is at " + str(joe))
+        potentialFEN = puzzle.updateFEN(moves[joe+1][0], moves[joe+1][1], potentialFEN)
+        # If we are at the last move.
+        if joe+1 >= amountOfMoves:
+            potentialFEN = puzzle.updateFEN(moves[-1][0], moves[-1][1], oldFEN)
+            # If we got the correct move, end the loop.
+            if reply == board.getPieceFromCoord(potentialFEN, moves[-1][1]):
+                embed = discord.Embed(title="Puzzle complete!")
+                embed.set_footer(text="Developed by Verl#7647, GitHub: https://github.com/TheVerl")
+                await ctx.send(embed=embed)
+                if os.path.exists("editedBoard.png"):
+                    os.remove("editedBoard.png")
+                print("Command executed succesfully.")
+                return
+        else:
+            # If the player wants to execute a command.
+            if reply.startswith(bot.command_prefix):
+                print("Command executed succesfully.")
+                print("Exiting out of the puzzle routine.")
+                on_message(msg)
+                return
+            # If this is the beginning of the puzzle.
+            elif reply == "INITIAL":
+                lastMove = board.getPieceFromCoord(oldFEN, moves[0][1])
+                requiredMove = board.getPieceFromCoord(potentialFEN, moves[joe+1][1])
+                arr = puzzle.createPuzzleEmbed(oldFEN, lastMove, requiredMove, ctx, True, difficulty, str(puzzleData[7]))
+                await ctx.send(file=arr[0], embed=arr[1])
+            # If we got the correct move.
+            elif reply == board.getPieceFromCoord(potentialFEN, moves[joe+1][1]):
+                oldFEN = potentialFEN
+                joe += 1
+                potentialFEN = puzzle.clearSquare(moves[joe][0], potentialFEN)
+                arr = puzzle.createCongratulationsEmbed(potentialFEN, ctx)
+                await ctx.send(file=arr[0], embed=arr[1])
+                joe += 1
+                potentialFEN = puzzle.updateFEN(moves[joe][0], moves[joe][1], potentialFEN)
+                potentialFEN = puzzle.clearSquare(moves[joe][0], potentialFEN)
+                lastMove = board.getPieceFromCoord(potentialFEN, moves[joe][1])
+                requiredMove = board.getPieceFromCoord(potentialFEN, moves[joe+1][1])
+                arr = puzzle.createPuzzleEmbed(potentialFEN, lastMove, requiredMove, ctx, True, difficulty, str(puzzleData[7]))
+                await ctx.send(file=arr[0], embed=arr[1])
+            # If we didn't.
+            else:
+                print("the move is " + moves[joe][1])
+                lastMove = board.getPieceFromCoord(oldFEN, moves[joe][1])
+                requiredMove = board.getPieceFromCoord(potentialFEN, moves[joe+1][1])
+                arr = puzzle.createPuzzleEmbed(oldFEN, lastMove, requiredMove, ctx, False, difficulty, str(puzzleData[7]))
+                await ctx.send(file=arr[0], embed=arr[1])
+
+        # Go and get the next message in the channel and use it as the reply.
+        def check(m):
+            return m.channel == channel and m.author.bot != True
+
+        msg = await bot.wait_for('message', check=check)
+        reply = msg.content
+
+        # If the board image exists, delete it.
+        if os.path.exists("editedBoard.png"):
+            os.remove("editedBoard.png")
+    return
+
 
 # Links chess.com/lichess accounts to the Discord user.
 @bot.command(name="link")
@@ -234,4 +360,5 @@ def init():
     bot.run(token)
 
 if __name__ == '__main__':
+    print("Loading...")
     init()
