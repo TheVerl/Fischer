@@ -7,6 +7,7 @@ import sys, json, datetime, csv, random, os, copy
 from datetime import datetime
 
 # Import scripts
+import puzzle
 sys.path.insert(0, 'platforms/')
 import chesscom
 import lichess
@@ -71,7 +72,7 @@ async def testCommand(ctx):
 
 # Complete a puzzle.
 @bot.command(name="puzzle")
-async def puzzle(ctx):
+async def pzl(ctx):
     # Get the channel where this command was invoked.
     channel = ctx.channel
 
@@ -85,29 +86,9 @@ async def puzzle(ctx):
     line = puzzleFile.readline()
     puzzleData = line.split(",")
 
-    # Create FEN list
+    # Grab FEN and parse it.
     print("ID:" + str(puzzleData[0]))
-    rawFen = puzzleData[1].split('/')
-    fen = []
-    gameData = []
-    for x in range(0, len(rawFen)):
-        if (x != len(rawFen) - 1):
-            fen.append(rawFen[x])
-        else:
-            fen.append(rawFen[x].split(" ", 1)[0])
-            gameData = rawFen[x].split(" ")
-
-    print("FEN:")
-    for x in range(0, len(fen)):
-        print(fen[x])
-    print("\n")
-    print("Extra data:")
-    for x in range(1, len(gameData)):
-        print(gameData[x])
-    print("\n")
-
-    # Send the FEN off to be decompiled.
-    decompiledFen = board.decompileFEN(fen, gameData)
+    decompiledFEN = puzzle.parseFEN(puzzleData[1].split('/'))
 
     # Get other info from CSV line.
     rawMoves = puzzleData[2].split(" ")
@@ -123,41 +104,45 @@ async def puzzle(ctx):
 
     completedPuzzle = False
     i = 0
-    FEN = board.updateFEN(moves[0][0], moves[0][1], decompiledFen)
+    FEN = puzzle.updateFEN(moves[0][0], moves[0][1], decompiledFEN)
+    FEN = puzzle.clearSquare(moves[0][0], FEN)
     potentialFEN = FEN
     oldFEN = FEN
     reply = "INITIAL"
 
+    amountOfMoves = len(moves) - 1
+    print("Amount of moves: " + str(amountOfMoves))
     while (completedPuzzle == False):
         oldFEN = FEN
-        potentialFEN = board.updateFEN(moves[i+1][0], moves[i+1][1], oldFEN)
-        print("MOVE REQUIRED: " + board.getPieceFromCoord(potentialFEN, moves[i+1][1]))
+        potentialFEN = puzzle.updateFEN(moves[i+1][0], moves[i+1][1], oldFEN)
         if reply == prefix + "puzzle":
-            puzzle(ctx)
+            pzl(ctx)
         if reply == "INITIAL":
-            trueMove = board.getPieceFromCoord(oldFEN, moves[0][1])
-            board.generateImage(oldFEN)
-            embed = discord.Embed(title="Random Puzzle", description=(oldFEN[-1][0] + " has played " + trueMove + ". Your turn.\nYou must send only algebraic notation of your move."))
-            file = discord.File("editedBoard.png", filename="image.png")
-            embed.set_image(url="attachment://image.png")
-            await ctx.send(file=file, embed=embed)
+            lastMove = board.getPieceFromCoord(oldFEN, moves[0][1])
+            requiredMove = board.getPieceFromCoord(potentialFEN, moves[i+1][1])
+            arr = puzzle.createPuzzleEmbed(oldFEN, lastMove, requiredMove, ctx)
+            await ctx.send(file=arr[0], embed=arr[1])
         elif reply == board.getPieceFromCoord(potentialFEN, moves[i+1][1]):
             i = i + 1
-            potentialFEN = board.clearSquare(moves[i][0], potentialFEN)
-            trueMove = board.getPieceFromCoord(potentialFEN, moves[i][1])
-            board.generateImage(potentialFEN)
-            embed = discord.Embed(title="Random Puzzle", description=("Correct! Now, " + potentialFEN[-1][0] + " has played " + trueMove + ". Your turn.\nYou must send only algebraic notation of your move."))
-            file = discord.File("editedBoard.png", filename="image.png")
-            embed.set_image(url="attachment://image.png")
-            await ctx.send(file=file, embed=embed)
+            potentialFEN = puzzle.clearSquare(moves[i][0], potentialFEN)
+            i = i + 1
+            if (i+1 > len(moves)):
+                completedPuzzle = True
+                embed = discord.Embed(title="Puzzle complete!")
+                await ctx.send(embed=embed)
+                return
+            potentialFEN = puzzle.updateFEN(moves[i][0], moves[i][1], potentialFEN)
+            potentialFEN = puzzle.clearSquare(moves[i][0], potentialFEN)
+            lastMove = board.getPieceFromCoord(potentialFEN, moves[i][1])
+            requiredMove = board.getPieceFromCoord(potentialFEN, moves[i+1][1])
+            arr = puzzle.createPuzzleEmbed(potentialFEN, lastMove, requiredMove, ctx)
+            await ctx.send(file=arr[0], embed=arr[1])
         else:
             print("the move is " + moves[i][1])
-            trueMove = board.getPieceFromCoord(oldFEN, moves[i][1])
-            board.generateImage(oldFEN)
-            embed = discord.Embed(title="Random Puzzle", description=("Incorrect. " + oldFEN[-1][0] + " has played " + trueMove + ". Your turn.\nYou must send only algebraic notation of your move."))
-            file = discord.File("editedBoard.png", filename="image.png")
-            embed.set_image(url="attachment://image.png")
-            await ctx.send(file=file, embed=embed)
+            lastMove = board.getPieceFromCoord(oldFEN, moves[i][1])
+            requiredMove = board.getPieceFromCoord(potentialFEN, moves[i+1][1])
+            arr = puzzle.createPuzzleEmbed(oldFEN, lastMove, requiredMove, ctx)
+            await ctx.send(file=arr[0], embed=arr[1])
 
         def check(m):
             return m.channel == channel and m.author.bot != True
